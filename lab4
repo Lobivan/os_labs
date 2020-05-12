@@ -1,0 +1,60 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#define MAX_BUFF_SIZE 10000
+
+typedef struct node {
+    char *line;
+    struct node *next;
+} Node;
+
+
+void free_list(Node *head) {
+    Node *cur_node = head;
+
+    while (cur_node->next) {
+        Node *delete_item = cur_node;
+        cur_node = cur_node->next;
+        free(delete_item->line);
+        free(delete_item);
+    }
+    free(cur_node->line);
+    free(cur_node);
+    free(head);
+
+}
+
+Node *make_node(char *line) {
+    size_t size = strlen(line);
+    Node *item = malloc(sizeof(Node));
+    item->line = malloc((size+1));
+    strncpy(item->line,line,size);
+    item->next = NULL;
+    return item;
+}
+
+void print_list(Node *list) {
+    Node *iterator = list->next;
+    while (iterator != NULL) {
+        fputs(iterator->line, stdout);
+        iterator = iterator->next;
+    }
+}
+
+int main() {
+    Node *list =malloc(sizeof(Node));
+    list->next = NULL;
+    list->line = NULL;
+    char buff[MAX_BUFF_SIZE];
+    Node *cur_node = list;
+    while (fgets(buff, MAX_BUFF_SIZE, stdin) != NULL ) {
+        if (buff[0] == '.') {
+            break;
+        }
+        cur_node->next = make_node(buff);
+        cur_node = cur_node->next;
+    }
+    print_list(list);
+    free_list(list);
+    return 0;
+}
