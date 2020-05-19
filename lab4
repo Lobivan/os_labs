@@ -8,11 +8,23 @@ typedef struct node {
     struct node *next;
 } Node;
 
+Node *make_list(){
+    Node *list =malloc(sizeof(Node));
+    if(list == NULL){
+        perror("Failed to allocate memory for list in make_list\n");
+        return NULL;
+    }
+    list->next = NULL;
+    list->line = NULL;
+    return list;
+}
 
 void free_list(Node *head) {
+    if(head == NULL){
+        return;
+    }
     Node *cur_node = head;
-
-    while (cur_node->next) {
+    while (cur_node->next != NULL) {
         Node *delete_item = cur_node;
         cur_node = cur_node->next;
         free(delete_item->line);
@@ -21,19 +33,37 @@ void free_list(Node *head) {
     free(cur_node->line);
     free(cur_node);
     free(head);
-
 }
 
 Node *make_node(char *line) {
+    if(line == NULL){
+        fprintf(stderr, "NULL input in make_node\n");
+        return NULL;
+    }
+    
     size_t size = strlen(line);
-    Node *item = malloc(sizeof(Node));
-    item->line = malloc((size+1));
-    strncpy(item->line,line,size);
-    item->next = NULL;
-    return item;
+    
+    Node *new_node = malloc(sizeof(Node));
+    if(new_node == NULL){
+        perror("Failed to allocate memory for new_node in make_node\n");
+        return NULL;
+    }
+    
+    new_node->line = malloc((size+1));
+    if(new_node->line == NULL){
+        perror("Failed to allocate memory for new_node->line in make_node\n");
+        free(new_node);
+        return NULL;
+    }
+    strncpy(new_node->line,line,size);
+    new_node->next = NULL;
+    return new_node;
 }
 
 void print_list(Node *list) {
+    if(list == NULL || list->next == NULL){
+        return;
+    }
     Node *iterator = list->next;
     while (iterator != NULL) {
         fputs(iterator->line, stdout);
@@ -42,20 +72,24 @@ void print_list(Node *list) {
 }
 
 int main() {
-    Node *list =malloc(sizeof(Node));
-    list->next = NULL;
-    list->line = NULL;
+    Node *list =make_list();
     char buff[MAX_BUFF_SIZE];
     Node *cur_node = list;
-    while (fgets(buff, MAX_BUFF_SIZE, stdin) != NULL ) {
-        if (buff[0] == '.') {
+    char* res;
+    while (true) {
+        res = fgets(buff, MAX_BUFF_SIZE, stdin);
+        if (res == NULL || buff[0] == '.') {
             break;
         }
-        if(strlen(buff) == MAX_BUFF_SIZE){
-            fprintf(stderr, "string is too long\n");
+        if(strlen(buff) == MAX_BUFF_SIZE - 1 && buff[MAX_BUFF_SIZE - 2] != '\n'){
+            fprintf(stderr, "String is too long, max allowed length is %d\n", MAX_BUFF_SIZE - 1);
+            free_list(list);
             return -1;
         }
         cur_node->next = make_node(buff);
+        if(cur_node->next == NULL){
+            return -1;
+        }
         cur_node = cur_node->next;
     }
     print_list(list);
