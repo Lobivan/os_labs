@@ -76,7 +76,7 @@ int main() {
     char buff[MAX_BUFF_SIZE];
     Node *cur_node = list;
     char* res;
-    while (true) {
+    while (1) {
         res = fgets(buff, MAX_BUFF_SIZE, stdin);
         if (res == NULL || buff[0] == '.') {
             break;
