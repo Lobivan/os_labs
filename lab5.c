@@ -1,107 +1,145 @@
 #include <stdio.h>
-#include <sys/types.h>
 #include <fcntl.h>
-#include <unistd.h>
 #include <stdlib.h>
-#include <signal.h>
 #include <errno.h>
+#include <ctype.h>
 
 #define SIZE 1024
 
 
-
-
-
-void catcher(int sig) {
-    errno = EINTR;
+void get_file_info(int file_desc, int *amount_of_lines, int **str_len,int **offset){
+    *amount_of_lines = 0;
+    int max_size = SIZE;
+    (*str_len) = (int*) malloc(sizeof(int) * SIZE);
+    if((*str_len) == NULL){
+        perror("Failed to allocate memory for str_len in get_file_info\n");
+        return;
+    }
+    (*offset) = (int*) malloc(sizeof(int) * SIZE);
+    if((*offset) == NULL){
+        perror("Failed to allocate memory for offset in get_file_info\n");
+        return;
+    }
+    char c;
+    int pos_in_str = 0;
+    int str_num = 0;
+    (*offset)[0] = 0;
+    while (read(file_desc, &c, 1)) {
+        if (c == '\n') {
+            ++pos_in_str;
+            (*str_len)[str_num] = pos_in_str ;
+            ++str_num;
+            (*offset)[str_num] = lseek(file_desc, 0, SEEK_CUR) - 0;
+            pos_in_str = 0;
+            if(++(*amount_of_lines) == SIZE) {
+                realloc(*str_len, max_size + SIZE);
+                if((*str_len) == NULL){
+                    perror("Failed to reallocate memory for str_len in get_file_info\n");
+                    return;
+                }
+                realloc(*offset, max_size + SIZE);
+                if((*offset) == NULL){
+                    perror("Failed to reallocate memory for offset in get_file_info\n");
+                    return;
+                }
+            }
+        }
+        else {
+            ++pos_in_str;
+        }
+    }
 }
+
+int get_num(long *number) {
+    char number_buff[SIZE];
+    int bytes_read = read(STDIN_FILENO, number_buff, SIZE);
+    if (bytes_read == -1) {
+        perror("Could not read input number");
+        return -1;
+    }
+
+    if (bytes_read == 0) {
+        printf("No input to read number\n");
+        return 1;
+    }
+
+    if (number_buff[bytes_read - 1] != '\n') {
+        printf("Entered string is too long\n");
+        return 1;
+    }
+
+    number_buff[bytes_read - 1] = '\0';
+
+    char *end_ptr;
+    char *buff_end_ptr = number_buff + bytes_read - 1;
+
+    *number = strtol(number_buff, &end_ptr, 10);
+    if (errno == ERANGE && (*number == LONG_MAX || *number == LONG_MIN)) {
+        fprintf(stderr, "Number is outside the range  of  representable values\n");
+        return -1;
+    }
+
+    for (char *c = end_ptr; c != buff_end_ptr; c++) {
+        if (!isspace(*c)) {
+            printf("Wrong number format, try again\n");
+            return 1;
+        }
+    }
+    return 0;
+}
+
 
 
 int main(int argc, char **argv) {
     if (argc != 2) {
-        perror("wrong param");
-        return -3;
+        fprintf(stderr, "Wrong amount of arguments, need 1");
+        return -1;
     }
     int file_desc;
     if ((file_desc = open(argv[1], O_RDONLY)) == -1) {
         perror("can't open file");
-        return -2;
-
+        return -1;
     }
-    char c;
-    int str_pos = 0;
-    int str = 0;
-    int str_len[SIZE];
-    int offset[SIZE];
+
+    int amount_of_lines;
+    int *str_len;
+    int *offset;
     char buf[SIZE];
+    int err;
+    get_file_info(file_desc, &amount_of_lines, &str_len, &offset);
 
-    while (read(file_desc, &c, 1)) {
-        if (c == '\n') {
-            ++str_pos;
-            str_len[str] = str_pos;
-            ++str;
-            offset[str] = lseek(file_desc, 0, SEEK_CUR);
-            str_pos = 0;
-
-        } else ++str_pos;
-
-
-    }
-
-    int number;
-    int i = 0;
-    struct sigaction sact;
-    sigemptyset(&sact.sa_mask);
-    /*
-     *
-sigemptyset simply
-     initializes the signalmask to empty,
-     such that it is guaranteed that no signal would be masked.
-     (that is, all signals will be received)
-     Basically it is similar to a memset(0)
-     but you don't have to know the details of the
-     implementation. So if the sa_mask member is changed
-     you don't need to adjust your code because it will be taken care of by
-     sigemptyset.
-     */
-    sact.sa_flags = 0;
-    sact.sa_handler = catcher;
-    sigaction(SIGALRM, &sact, NULL);
-
-
+    long number;
     while (1) {
-        printf("write number of string\n");
-        alarm(5); /* заказать сигнал через 5 сек */
-        read(STDIN_FILENO, &buf, SIZE);
-        alarm(0);
-        if (errno == EINTR) {
-            lseek(file_desc, SEEK_SET, 0);
-
-            while ((i = read(file_desc, buf, SIZE)) > 0)
-                write(1, buf, i);
-            exit(0);
+        printf("Write number of string\n");
+        err = get_num(&number);
+        if(err == 1){
+            continue;
+        }
+        else if(err == -1){
+            return -1;
         }
 
-
-            number = atoi(buf);
-            if (number == 0) {
-                break;
-            }
-            if (number < 0) {
-                printf("wrong format of number: ");
-                return -1;
-            }
-            lseek(file_desc, offset[number], SEEK_SET);
-            if (read(file_desc, buf, str_len[number])) {
-                write(STDOUT_FILENO, buf, str_len[number]);
-            } else {
-                printf("bad number: ");
-
-            }
-
-
+        if(number == 0){
+            printf("See you next time!");
+            break;
         }
-
-
-        return 0;
+        if (number < 0 || number > amount_of_lines) {
+            printf("Number is outside the range  of  representable values. Amount of lines = %d. Try again.\n", amount_of_lines);
+            continue;
+        }
+        lseek(file_desc, offset[number - 1], SEEK_SET);
+        for(int j = 0; j < SIZE; j++){
+            buf[j] = 0;
+        }
+        if (read(file_desc, buf, str_len[number - 1]) >= 0) {
+            printf("%s\n", buf);
+        } else {
+            perror("Failed to read from file");
+            return -1;
+        }
     }
+    close(file_desc);
+    free(offset);
+    free(str_len);
+    return 0;
+}
