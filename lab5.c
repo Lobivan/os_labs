@@ -7,18 +7,18 @@
 #define SIZE 1024
 
 
-void get_file_info(int file_desc, int *amount_of_lines, int **str_len,int **offset){
+int get_file_info(int file_desc, int *amount_of_lines, int **str_len,int **offset){
     *amount_of_lines = 0;
     int max_size = SIZE;
     (*str_len) = (int*) malloc(sizeof(int) * SIZE);
     if((*str_len) == NULL){
         perror("Failed to allocate memory for str_len in get_file_info\n");
-        return;
+        return -1;
     }
     (*offset) = (int*) malloc(sizeof(int) * SIZE);
     if((*offset) == NULL){
         perror("Failed to allocate memory for offset in get_file_info\n");
-        return;
+        return -1;
     }
     char c;
     int pos_in_str = 0;
@@ -29,18 +29,22 @@ void get_file_info(int file_desc, int *amount_of_lines, int **str_len,int **offs
             ++pos_in_str;
             (*str_len)[str_num] = pos_in_str ;
             ++str_num;
-            (*offset)[str_num] = lseek(file_desc, 0, SEEK_CUR) - 0;
+            (*offset)[str_num] = lseek(file_desc, 0, SEEK_CUR);
+            if((*offset)[str_num] == -1){
+                perror("Failed during lseek in get_file_info");
+                return -1;
+            }
             pos_in_str = 0;
             if(++(*amount_of_lines) == SIZE) {
                 realloc(*str_len, max_size + SIZE);
                 if((*str_len) == NULL){
                     perror("Failed to reallocate memory for str_len in get_file_info\n");
-                    return;
+                    return -1;
                 }
                 realloc(*offset, max_size + SIZE);
                 if((*offset) == NULL){
                     perror("Failed to reallocate memory for offset in get_file_info\n");
-                    return;
+                    return -1;
                 }
             }
         }
@@ -48,6 +52,7 @@ void get_file_info(int file_desc, int *amount_of_lines, int **str_len,int **offs
             ++pos_in_str;
         }
     }
+   return 0;
 }
 
 int get_num(long *number) {
@@ -106,7 +111,9 @@ int main(int argc, char **argv) {
     int *offset;
     char buf[SIZE];
     int err;
-    get_file_info(file_desc, &amount_of_lines, &str_len, &offset);
+    if(get_file_info(file_desc, &amount_of_lines, &str_len, &offset) == -1){
+       return -1;
+    }
 
     long number;
     while (1) {
@@ -127,7 +134,10 @@ int main(int argc, char **argv) {
             printf("Number is outside the range  of  representable values. Amount of lines = %d. Try again.\n", amount_of_lines);
             continue;
         }
-        lseek(file_desc, offset[number - 1], SEEK_SET);
+        if(lseek(file_desc, offset[number - 1], SEEK_SET) == -1){
+            perror("Failed during lseek in main");
+            return -1;
+        }
         for(int j = 0; j < SIZE; j++){
             buf[j] = 0;
         }
