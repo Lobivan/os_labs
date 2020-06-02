@@ -65,7 +65,7 @@ int get_file_info(int file_desc, int *amount_of_lines, int **length_of_string, i
 
 int get_num(long *number) {
     char number_buff[BUF_SIZE];
-    int bytes_read = read(STDIN_FILENO, number_buff, BUF_SIZE);
+    int bytes_read = read(0, number_buff, BUF_SIZE);
     if (bytes_read == -1) {
         perror("Could not read input number");
         return -1;
