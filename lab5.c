@@ -50,12 +50,14 @@ int get_file_info(File_info *file_info){
                 temp_ptr = (int*)realloc(file_info->length_of_string, sizeof(int) * max_size);
                 if(temp_ptr == NULL){
                     perror("Failed to reallocate memory for length_of_string in get_file_info\n");
+                    free(temp_ptr);
                     return EXIT_AFTER_ERROR;
                 }
                 file_info->length_of_string = temp_ptr;
                 temp_ptr = (int*)realloc(file_info->string_offset, sizeof(int) * max_size);
                 if(temp_ptr == NULL){
                     perror("Failed to reallocate memory for string_offset in get_file_info\n");
+                    free(temp_ptr);
                     return EXIT_AFTER_ERROR;
                 }
                 file_info->string_offset = temp_ptr;
