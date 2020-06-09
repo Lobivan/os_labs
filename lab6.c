@@ -212,7 +212,10 @@ int main(int argc, char **argv) {
         if(error == CONTINUE_AFTER_ERROR){
             continue;
         }
-        else if(error == EXIT_AFTER_ERROR){
+        else if(error == EXIT_AFTER_ERROR){ 
+            close(file_info.file_desc);
+            free(file_info.string_offset);
+            free(file_info.length_of_string);
             return -1;
         }
 
@@ -226,6 +229,9 @@ int main(int argc, char **argv) {
         }
         if(lseek(file_info.file_desc, file_info.string_offset[number - 1], SEEK_SET) == -1){
             perror("Failed during lseek in main");
+            close(file_info.file_desc);
+            free(file_info.string_offset);
+            free(file_info.length_of_string);
             return -1;
         }
         for(int j = 0; j < BUF_SIZE; j++){
@@ -234,12 +240,18 @@ int main(int argc, char **argv) {
         error = read(file_info.file_desc, buf, file_info.length_of_string[number - 1]);
         if(error == -1){
             perror("Error while reading in main");
+            close(file_info.file_desc);
+            free(file_info.string_offset);
+            free(file_info.length_of_string);
             return -1;
         }
         if (error >= 0) {
             printf("%s\n", buf);
         } else {
             perror("Failed to read from file");
+            close(file_info.file_desc);
+            free(file_info.string_offset);
+            free(file_info.length_of_string);
             return -1;
         }
     }
