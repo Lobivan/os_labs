@@ -11,6 +11,11 @@
 #define ARR_SIZE 1024
 #define BUF_SIZE 1024
 #define TIMEOUT 5000
+#define STDIN_FD 0
+#define EXIT_AFTER_ERROR -1
+#define CONTINUE_AFTER_ERROR 1
+#define DEMICAL 10
+#define OUT_OF_TIME 1
 
 typedef struct File_info{
     int file_desc;
@@ -25,37 +30,40 @@ int get_file_info(File_info *file_info){
     (file_info->length_of_string) = (int*) malloc(sizeof(int) * ARR_SIZE);
     if((file_info->length_of_string) == NULL){
         perror("Failed to allocate memory for length_of_string in get_file_info\n");
-        return -1;
+        return EXIT_AFTER_ERROR;
     }
     (file_info->string_offset) = (int*) malloc(sizeof(int) * ARR_SIZE);
     if((file_info->string_offset) == NULL){
         perror("Failed to allocate memory for string_offset in get_file_info\n");
-        return -1;
+        return EXIT_AFTER_ERROR;
     }
     char c = '0';
     int pos_in_str = 0;
     int str_num = 0;
     (file_info->string_offset)[0] = 0;
     int error = 1;
+    int *temp_ptr;
     while (error == 1) {
         error = read(file_info->file_desc, &c, 1);
         if(error == -1){
             perror("Error while reading in get_file_info");
-            return -1;
+            return EXIT_AFTER_ERROR;
         }
         if (c == '\n') {
             if(++(file_info->amount_of_lines) == max_size) {
                 max_size += ARR_SIZE;
-                (file_info->length_of_string) = (int*)realloc(file_info->length_of_string, sizeof(int) * max_size);
-                if((file_info->length_of_string) == NULL){
+                temp_ptr = (int*)realloc(file_info->length_of_string, sizeof(int) * max_size);
+                if(temp_ptr == NULL){
                     perror("Failed to reallocate memory for length_of_string in get_file_info\n");
-                    return -1;
+                    return EXIT_AFTER_ERROR;
                 }
-                (file_info->string_offset) = (int*)realloc(file_info->string_offset, sizeof(int) * max_size);
-                if((file_info->string_offset) == NULL){
+                file_info->length_of_string = temp_ptr;
+                temp_ptr = (int*)realloc(file_info->string_offset, sizeof(int) * max_size);
+                if(temp_ptr == NULL){
                     perror("Failed to reallocate memory for string_offset in get_file_info\n");
-                    return -1;
+                    return EXIT_AFTER_ERROR;
                 }
+                file_info->string_offset = temp_ptr;
             }
             ++pos_in_str;
             (file_info->length_of_string)[str_num] = pos_in_str ;
@@ -63,7 +71,7 @@ int get_file_info(File_info *file_info){
             (file_info->string_offset)[str_num] = lseek(file_info->file_desc, 0, SEEK_CUR);
             if((file_info->string_offset)[str_num] == -1){
                 perror("Failed during lseek in get_file_info");
-                return -1;
+                return EXIT_AFTER_ERROR;
             }
             pos_in_str = 0;
 
@@ -72,25 +80,26 @@ int get_file_info(File_info *file_info){
             ++pos_in_str;
         }
     }
+    free(temp_ptr);
     return 0;
 }
 
 int get_num(long *number) {
     char number_buff[BUF_SIZE];
-    int bytes_read = read(0, number_buff, BUF_SIZE);
+    int bytes_read = read(STDIN_FD, number_buff, BUF_SIZE);
     if (bytes_read == -1) {
         perror("Could not read input number");
-        return -1;
+        return EXIT_AFTER_ERROR;
     }
 
     if (bytes_read == 0) {
         printf("No input to read number\n");
-        return 1;
+        return CONTINUE_AFTER_ERROR;
     }
 
     if (number_buff[bytes_read - 1] != '\n') {
         printf("Entered string is too long\n");
-        return 1;
+        return CONTINUE_AFTER_ERROR;
     }
 
     number_buff[bytes_read - 1] = '\0';
@@ -98,16 +107,16 @@ int get_num(long *number) {
     char *end_ptr;
     char *buff_end_ptr = number_buff + bytes_read - 1;
 
-    *number = strtol(number_buff, &end_ptr, 10);
+    *number = strtol(number_buff, &end_ptr, DEMICAL);
     if (errno == ERANGE && (*number == LONG_MAX || *number == LONG_MIN)) {
         fprintf(stderr, "Number is outside the range  of  representable values\n");
-        return -1;
+        return EXIT_AFTER_ERROR;
     }
 
     for (char *c = end_ptr; c != buff_end_ptr; c++) {
         if (!isspace(*c)) {
             printf("Wrong number format, try again\n");
-            return 1;
+            return CONTINUE_AFTER_ERROR;
         }
     }
     return 0;
@@ -118,14 +127,19 @@ int print_all_strings(File_info *file_info){
         return 0;
     }
     char buf[BUF_SIZE];
-    int error = 1;
+    int error;
     int chars_read;
-    printf("%d", file_info->amount_of_lines);
+
+    error = lseek(file_info->file_desc, 0, SEEK_SET);
+    if(error == -1){
+        perror("Failed during lseek in print_all_strings");
+        return EXIT_AFTER_ERROR;
+    }
     do {
         chars_read = read(file_info->file_desc, buf, BUF_SIZE - 1);
         if (chars_read == -1) {
             perror("Error while reading in print_all_lines");
-            return EXIT_FAILURE;
+            return EXIT_AFTER_ERROR;
         }
         buf[chars_read] = '\0';
         printf("%s", buf);
@@ -137,25 +151,25 @@ int print_all_strings(File_info *file_info){
 int waitTimeout() {
     int ready;
     struct pollfd fds;
-    fds.fd = 0;
+    fds.fd = STDIN_FD;
     fds.events = 0 | POLLIN;
     int timeout = TIMEOUT;
 
     ready = poll(&fds, 1, timeout);
     if (ready == -1) {
         perror("Poll error while waiting for file descriptor to be ready");
-        return -1;
+        return EXIT_AFTER_ERROR;
     }
 
     if (ready == 0) {
-        return 1;
+        return OUT_OF_TIME;
     }
 
     short revents = fds.revents;
 
     if ((revents & POLLERR) || (revents & POLLHUP) || (revents & POLLNVAL)) {
         fprintf(stderr, "Error occured with standard input stream\n");
-        return -1;
+        return EXIT_AFTER_ERROR;
     }
     return 0;
 }
@@ -174,26 +188,31 @@ int main(int argc, char **argv) {
 
     char buf[BUF_SIZE];
     int error;
-    get_file_info(&file_info);
+    if(get_file_info(&file_info)){
+        close(file_info.file_desc);
+        free(file_info.string_offset);
+        free(file_info.length_of_string);
+        return -1;
+    }
 
 
     long number;
     while (1) {
         printf("Write number of string\n");
         error = waitTimeout();
-        if (error == -1) {
+        if (error == EXIT_AFTER_ERROR) {
             return -1;
         }
-        if (error == 1) {
-            printf("Time exceeded, printing file contents:\n");
+        if (error == OUT_OF_TIME) {
+            printf("Ran out of time, printing file contents:\n");
             return print_all_strings(&file_info);
         }
 
         error = get_num(&number);
-        if(error == 1){
+        if(error == CONTINUE_AFTER_ERROR){
             continue;
         }
-        else if(error == -1){
+        else if(error == EXIT_AFTER_ERROR){
             return -1;
         }
 
