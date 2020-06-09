@@ -16,6 +16,7 @@
 #define CONTINUE_AFTER_ERROR 1
 #define DEMICAL 10
 #define OUT_OF_TIME 1
+#define SUCCESS 0
 
 typedef struct File_info{
     int file_desc;
@@ -81,7 +82,7 @@ int get_file_info(File_info *file_info){
         }
     }
     free(temp_ptr);
-    return 0;
+    return SUCCESS;
 }
 
 int get_num(long *number) {
@@ -119,18 +120,19 @@ int get_num(long *number) {
             return CONTINUE_AFTER_ERROR;
         }
     }
-    return 0;
+    return SUCCESS;
 }
 
 int print_all_strings(File_info *file_info){
     if(file_info == NULL){
-        return 0;
+        return SUCCESS;
     }
     char buf[BUF_SIZE];
     int error;
     int chars_read;
+    int offset = 0;
 
-    error = lseek(file_info->file_desc, 0, SEEK_SET);
+    error = lseek(file_info->file_desc, offset, SEEK_SET);
     if(error == -1){
         perror("Failed during lseek in print_all_strings");
         return EXIT_AFTER_ERROR;
@@ -145,7 +147,7 @@ int print_all_strings(File_info *file_info){
         printf("%s", buf);
     } while (chars_read > 0);
 
-    return 0;
+    return SUCCESS;
 }
 
 int waitTimeout() {
@@ -154,14 +156,15 @@ int waitTimeout() {
     fds.fd = STDIN_FD;
     fds.events = 0 | POLLIN;
     int timeout = TIMEOUT;
+    int amount_of_fds = 1;
 
-    ready = poll(&fds, 1, timeout);
-    if (ready == -1) {
+    ready = poll(&fds, amount_of_fds, timeout);
+    if (ready == EXIT_AFTER_ERROR) {                                                    //проверка на ошибки
         perror("Poll error while waiting for file descriptor to be ready");
         return EXIT_AFTER_ERROR;
     }
 
-    if (ready == 0) {
+    if (ready == 0) {                                                                   //проверка на завершение таймера
         return OUT_OF_TIME;
     }
 
@@ -171,19 +174,25 @@ int waitTimeout() {
         fprintf(stderr, "Error occured with standard input stream\n");
         return EXIT_AFTER_ERROR;
     }
-    return 0;
+
+    if(!(revents & POLLIN)){                                                            //проверка на готовность ввода
+        fprintf(stderr, "Nothing to read in standard input stream\n");
+        return EXIT_AFTER_ERROR;
+    }
+
+    return SUCCESS;
 }
 
 
 int main(int argc, char **argv) {
     if (argc != 2) {
         fprintf(stderr, "Wrong amount of arguments, need 1");
-        return -1;
+        return EXIT_AFTER_ERROR;
     }
     File_info file_info;
     if ((file_info.file_desc = open(argv[1], O_RDONLY)) == -1) {
         perror("can't open file");
-        return -1;
+        return EXIT_AFTER_ERROR;
     }
 
     char buf[BUF_SIZE];
@@ -192,7 +201,7 @@ int main(int argc, char **argv) {
         close(file_info.file_desc);
         free(file_info.string_offset);
         free(file_info.length_of_string);
-        return -1;
+        return EXIT_AFTER_ERROR;
     }
 
 
@@ -201,7 +210,10 @@ int main(int argc, char **argv) {
         printf("Write number of string\n");
         error = waitTimeout();
         if (error == EXIT_AFTER_ERROR) {
-            return -1;
+            close(file_info.file_desc);
+            free(file_info.string_offset);
+            free(file_info.length_of_string);
+            return EXIT_AFTER_ERROR;
         }
         if (error == OUT_OF_TIME) {
             printf("Ran out of time, printing file contents:\n");
@@ -212,11 +224,11 @@ int main(int argc, char **argv) {
         if(error == CONTINUE_AFTER_ERROR){
             continue;
         }
-        else if(error == EXIT_AFTER_ERROR){ 
+        else if(error == EXIT_AFTER_ERROR){
             close(file_info.file_desc);
             free(file_info.string_offset);
             free(file_info.length_of_string);
-            return -1;
+            return EXIT_AFTER_ERROR;
         }
 
         if(number == 0){
@@ -232,7 +244,7 @@ int main(int argc, char **argv) {
             close(file_info.file_desc);
             free(file_info.string_offset);
             free(file_info.length_of_string);
-            return -1;
+            return EXIT_AFTER_ERROR;
         }
         for(int j = 0; j < BUF_SIZE; j++){
             buf[j] = 0;
@@ -243,7 +255,7 @@ int main(int argc, char **argv) {
             close(file_info.file_desc);
             free(file_info.string_offset);
             free(file_info.length_of_string);
-            return -1;
+            return EXIT_AFTER_ERROR;
         }
         if (error >= 0) {
             printf("%s\n", buf);
@@ -252,11 +264,11 @@ int main(int argc, char **argv) {
             close(file_info.file_desc);
             free(file_info.string_offset);
             free(file_info.length_of_string);
-            return -1;
+            return EXIT_AFTER_ERROR;
         }
     }
     close(file_info.file_desc);
     free(file_info.string_offset);
     free(file_info.length_of_string);
-    return 0;
+    return SUCCESS;
 }
